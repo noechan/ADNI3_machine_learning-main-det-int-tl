@@ -9,7 +9,7 @@ packages in the `requirements.txt` file with the corresponding Python version.
 
 Usage
 ---------------------------
-The repository only contains the ``classification_pipeline.py`` runnable script. 
+The repository only contains the ``all_classifiers_run_pipeline.py`` runnable script. 
 It contains a series of configurable parameters at the head of the script that can 
 be modified directly on the code. 
 
