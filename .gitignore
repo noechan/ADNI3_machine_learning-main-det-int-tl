@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.ipynb_checkpoints
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+.idea/workspace.xml
+.idea/
+
+# Data (avoid versioning large/raw files directly)
+data/raw/
+*.nii
+*.tsv
+
+# Environment files
+.env
+*.log
+
+# Do not track Results folder
+Results/
