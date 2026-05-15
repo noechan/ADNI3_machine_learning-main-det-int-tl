@@ -1,4 +1,5 @@
 import json
+import sys
 import multiprocessing
 
 from pathlib import Path
@@ -24,7 +25,15 @@ if __name__ == "__main__":
     path_repo = Path(Path(__file__).parent / ".." / "..").resolve()
     excel_folder = path_repo / "Data" / "trophic"
     param_folder = path_repo / "Parameters"
-    for classification in classifications:
+
+    # Optional CLI arg: index into the classifications list (for SLURM job arrays)
+    if len(sys.argv) > 1:
+        idx = int(sys.argv[1])
+        run_classifications = [classifications[idx]]
+    else:
+        run_classifications = classifications
+
+    for classification in run_classifications:
         for data_type in data_files.keys():
             print(f"Training {classifier} with parameters_{classifier}.json")
 

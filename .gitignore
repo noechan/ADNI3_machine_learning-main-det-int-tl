@@ -31,3 +31,6 @@ data/raw/
 
 # Do not track Results folder
 Results/
+
+# Do not track .sh files
+**.sh
