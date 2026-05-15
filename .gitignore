@@ -20,6 +20,7 @@ __pycache__/
 .idea/
 
 # Data (avoid versioning large/raw files directly)
+Data
 data/raw/
 *.nii
 *.tsv
