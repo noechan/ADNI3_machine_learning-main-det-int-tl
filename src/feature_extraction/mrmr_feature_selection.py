@@ -21,6 +21,9 @@ def mrmr_feature_selection_deterministic(X, y, k=15, random_state=0):
     selected = []
     not_selected = list(range(n_features))
 
+    # Track cumulative redundancy sum for each feature (incremental update)
+    redundancy_sum = np.zeros(n_features)
+
     first = int(np.argmax(relevance))
     selected.append(first)
     not_selected.remove(first)
@@ -29,25 +32,29 @@ def mrmr_feature_selection_deterministic(X, y, k=15, random_state=0):
         if not not_selected:
             break
 
-        scores = []
-        for j in not_selected:
-            redundancy = 0.0
-            if selected:
-                X_candidate = X[:, j].reshape(-1, 1)
-                redundancy = float(np.mean([
-                    mutual_info_regression(
-                        X_candidate, X[:, sel].ravel(), random_state=random_state
-                    )[0]
-                    for sel in selected
-                ]))
+        not_selected_arr = np.array(not_selected)
+        last_selected = selected[-1]
 
-            score = relevance[j] if redundancy < 1e-10 else relevance[j] / redundancy
-            scores.append(score)
+        # Batch MI: compute MI between ALL remaining candidates and the last
+        # selected feature in a single call (instead of one call per candidate)
+        mi_with_last = mutual_info_regression(
+            X[:, not_selected_arr], X[:, last_selected].ravel(),
+            random_state=random_state
+        )
 
-        scores = np.asarray(scores, dtype=float)
+        # Incrementally update redundancy sums (avoid recomputing from scratch)
+        redundancy_sum[not_selected_arr] += mi_with_last
+
+        # Vectorised mRMR score computation
+        num_selected = len(selected)
+        avg_redundancy = redundancy_sum[not_selected_arr] / num_selected
+        candidate_relevance = relevance[not_selected_arr]
+        scores = candidate_relevance.copy()
+        mask = avg_redundancy >= 1e-10
+        scores[mask] = candidate_relevance[mask] / avg_redundancy[mask]
 
         # Minimal deterministic selection (np.argmax is deterministic given scores)
-        next_feature = int(not_selected[int(np.argmax(scores))])
+        next_feature = int(not_selected_arr[int(np.argmax(scores))])
 
         selected.append(next_feature)
         not_selected.remove(next_feature)
