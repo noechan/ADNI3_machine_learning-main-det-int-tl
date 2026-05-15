@@ -6,7 +6,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_curve, auc, accuracy_score, balanced_accuracy_score
 
-from ..feature_extraction.mrmr_feature_selection import mrmr_feature_selection_deterministic
+from ..feature_extraction.mrmr_feature_selection import (
+    mrmr_feature_selection_deterministic as mrmr_feature_selection
+)
 
 scores = {
     "accuracy": accuracy_score,
@@ -248,7 +250,7 @@ def pipeline_gridsearch_3d_with_loocv(x_train, y_train, feature_columns, config_
 
             if config_params["USE_MRMR_FEATURE_SELECTION"]:
                 # Repeat MRMR with the current "NF" value
-                selected_indices = mrmr_feature_selection_deterministic(x_train, y_train, k=nf_value)
+                selected_indices = mrmr_feature_selection(x_train, y_train, k=nf_value)
                 current_selected_features = [
                     feature_columns[i] for i in selected_indices
                 ]
