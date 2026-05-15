@@ -19,6 +19,6 @@ generates the reports and results in an automatically created folder ``/Results`
 NOTES ON NEW RELEASE
 ----------------
 mRMR mutual_info_classif added as Y is a binary label 
-mRMR now is deterministic: random state added
-mRMR is performed on the train set of each LOOC, before was on the global train set
+mRMR now is deterministic: random state added (import issues have been fixed)
+mRMR is performed on the train set of each LOOCV, before was on the global train set
 Youden's J is now only calculated from the train set and the threshold applied to the test set
