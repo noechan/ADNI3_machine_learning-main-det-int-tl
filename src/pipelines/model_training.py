@@ -66,59 +66,42 @@ def pipeline_gridsearch_2d_with_loocv(x_train, y_train, feature_columns, config_
 
     best_score = 0
     best_selected_features = []
+    current_selected_features = list(feature_columns)
 
-    # If number of features is not explored as hyperparm -> Perform MRMR outside loop
+    # Determine fixed NF if it's not a hyperparameter
     if "NF" not in hyperparams:
-        # For fixed feature count, do the feature selection once outside the loop
         if config_params["USE_MRMR_FEATURE_SELECTION"]:
-            # Only use training data for feature selection
             if config_params.get("NF", False):
-                selected_indices = mrmr_feature_selection(
-                    x_train, y_train, k=config_params["NF"]
-                )
+                fixed_nf = config_params["NF"]
             else:
                 print("'NF' parameter has not been passed for MRMR selection. NF=15")
-                selected_indices = mrmr_feature_selection(x_train, y_train)
-            x_train_selected = x_train[:, selected_indices]
-            best_selected_features = [feature_columns[i] for i in selected_indices]
-
-        else:  # If "NF" not explored and we do not use MRMR -> x_train contains all
-            x_train_selected = x_train
-            best_selected_features = feature_columns
-
+                fixed_nf = 15
+        else:
+            fixed_nf = None
     else:  # If "NF" explored, ensure that NF is the first to be explored
         hyp_not_nf = [hyp for hyp in hyperparams if hyp != "NF"][0]  # Just 2 params
         gs_hyperparams = {"NF": gs_hyperparams["NF"], hyp_not_nf: gs_hyperparams[hyp_not_nf]}
         hyperparams = list(gs_hyperparams.keys())
+        fixed_nf = None
 
     # Create LOOCV object for nested cross-validation
     loo = LeaveOneOut()
     best_hyperparams = {}
-    current_selected_features = best_selected_features
+
     # Grid search with nested LOOCV
     with tqdm(
         total=len(gs_hyperparams[hyperparams[0]]) * len(gs_hyperparams[hyperparams[1]]),
         desc="Grid Search",
         ncols=100,
     ) as pbar:
+
         for hyp0_val in gs_hyperparams[hyperparams[0]]:
             hyp0_key = hyperparams[0]
-
-            # If we are exploring "NF" -> Select features with MRMR, else continue
+            # Determine the NF value for this iteration
             if hyp0_key == "NF":
-                if config_params["USE_MRMR_FEATURE_SELECTION"]:
-                    # Repeat MRMR with the current "NF" value
-                    selected_indices = mrmr_feature_selection(x_train, y_train, k=hyp0_val)
-                    current_selected_features = [
-                        feature_columns[i] for i in selected_indices
-                    ]
-                    x_train_selected = x_train[:, selected_indices]
-                else:  # If we are not using MRMR
-                    # But still NF is hyperparam (which will not happen, edge case):
-                    # Take the first NF (does not make a lot of sense anyway)
-                    current_selected_features = feature_columns[:hyp0_val]
-                    x_train_selected = x_train[:, :hyp0_val]
-
+                current_nf = hyp0_val
+            else:
+                current_nf = fixed_nf
             for hyp1_val in gs_hyperparams[hyperparams[1]]:
                 hyp1_key = hyperparams[1]
 
@@ -141,12 +124,28 @@ def pipeline_gridsearch_2d_with_loocv(x_train, y_train, feature_columns, config_
                 y_pred = []
                 y_pred_proba = []
 
-                for train_idx, val_idx in loo.split(x_train_selected):
+                for train_idx, val_idx in loo.split(x_train):
                     x_train_loo, x_val_loo = (
-                        x_train_selected[train_idx],
-                        x_train_selected[val_idx],
+                        x_train[train_idx],
+                        x_train[val_idx],
                     )
                     y_train_loo, y_val_loo = y_train[train_idx], y_train[val_idx]
+
+                    # Feature selection inside LOOCV to avoid data leakage
+                    if config_params["USE_MRMR_FEATURE_SELECTION"]:
+                        selected_indices = mrmr_feature_selection(
+                            x_train_loo, y_train_loo, k=current_nf
+                        )
+                        current_selected_features = [
+                            feature_columns[i] for i in selected_indices
+                        ]
+                        x_train_loo = x_train_loo[:, selected_indices]
+                        x_val_loo = x_val_loo[:, selected_indices]
+                    elif hyp0_key == "NF":
+                        # NF is hyperparam but not using MRMR (edge case)
+                        current_selected_features = feature_columns[:current_nf]
+                        x_train_loo = x_train_loo[:, :current_nf]
+                        x_val_loo = x_val_loo[:, :current_nf]
 
                     if config_params["STANDARDIZE_DATA"]:
                         scaler = StandardScaler()
@@ -246,20 +245,8 @@ def pipeline_gridsearch_3d_with_loocv(x_train, y_train, feature_columns, config_
 
     # Grid search with nested LOOCV
     with (tqdm(total=total_values, desc="Grid Search", ncols=100) as pbar):
-        for nf_value in gs_hyperparams[hyperparams[0]]:
 
-            if config_params["USE_MRMR_FEATURE_SELECTION"]:
-                # Repeat MRMR with the current "NF" value
-                selected_indices = mrmr_feature_selection(x_train, y_train, k=nf_value)
-                current_selected_features = [
-                    feature_columns[i] for i in selected_indices
-                ]
-                x_train_selected = x_train[:, selected_indices]
-            else:  # If we are not using MRMR
-                # But still NF is hyperparam (which will not happen, edge case):
-                # Take the first NF (does not make a lot of sense anyway)
-                current_selected_features = feature_columns[:nf_value]
-                x_train_selected = x_train[:, :nf_value]
+        for nf_value in gs_hyperparams[hyperparams[0]]:
 
             for hyp1_val in gs_hyperparams[hyperparams[1]]:
                 hyp1_key = hyperparams[1]
@@ -283,12 +270,26 @@ def pipeline_gridsearch_3d_with_loocv(x_train, y_train, feature_columns, config_
                     y_pred = []
                     y_pred_proba = []
 
-                    for train_idx, val_idx in loo.split(x_train_selected):
-                        x_train_loo, x_val_loo = (
-                            x_train_selected[train_idx],
-                            x_train_selected[val_idx],
-                        )
+                    for train_idx, val_idx in loo.split(x_train):
+                        x_train_loo, x_val_loo = x_train[train_idx], x_train[val_idx]
                         y_train_loo, y_val_loo = y_train[train_idx], y_train[val_idx]
+
+                        if config_params["USE_MRMR_FEATURE_SELECTION"]:
+                            # Apply MRMR feature selection with the current "NF" value
+                            selected_indices = mrmr_feature_selection(
+                                x_train_loo, y_train_loo, k=nf_value
+                            )
+                            current_selected_features = [
+                                feature_columns[i] for i in selected_indices
+                            ]
+                            x_train_loo = x_train_loo[:, selected_indices]
+                            x_val_loo = x_val_loo[:, selected_indices]
+                        else:  # If we are not using MRMR
+                            # But still NF is hyperparam (edge case)
+                            # Take the first NF (does not make a lot of sense anyway)
+                            current_selected_features = feature_columns[:nf_value]
+                            x_train_loo = x_train_loo[:, :nf_value]
+                            x_val_loo = x_val_loo[:, :nf_value]
 
                         if config_params["STANDARDIZE_DATA"]:
                             scaler = StandardScaler()
