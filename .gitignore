@@ -24,6 +24,9 @@ Data
 data/raw/
 *.nii
 *.tsv
+Data/*
+!Data/turbu_hopf/
+!Data/turbu_hopf/**
 
 # Environment files
 .env
