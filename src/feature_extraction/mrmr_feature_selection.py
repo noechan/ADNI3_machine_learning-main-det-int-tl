@@ -60,3 +60,67 @@ def mrmr_feature_selection_deterministic(X, y, k=15, random_state=0):
         not_selected.remove(next_feature)
 
     return selected
+
+def constrained_mrmr_feature_selection(
+    X,
+    y,
+    feature_columns,
+    k,
+    always_include=None,
+    exclude=None,
+    random_state=0,
+):
+    X = np.asarray(X)
+    y = np.asarray(y).ravel()
+
+    always_include = always_include or []
+    exclude = exclude or []
+
+    feature_to_idx = {f: i for i, f in enumerate(feature_columns)}
+
+    missing_always = [f for f in always_include if f not in feature_to_idx]
+    missing_exclude = [f for f in exclude if f not in feature_to_idx]
+
+    if missing_always:
+        raise ValueError(f"Features in ALWAYS_INCLUDE_FEATURES not found: {missing_always}")
+    if missing_exclude:
+        raise ValueError(f"Features in EXCLUDED_FEATURES not found: {missing_exclude}")
+
+    excluded_idx = {feature_to_idx[f] for f in exclude}
+    fixed_idx = [
+        feature_to_idx[f]
+        for f in always_include
+        if feature_to_idx[f] not in excluded_idx
+    ]
+
+    if k < len(fixed_idx):
+        raise ValueError(
+            f"NF={k} is smaller than the number of always-included features "
+            f"({len(fixed_idx)})."
+        )
+
+    eligible_idx = [
+        i for i, f in enumerate(feature_columns)
+        if i not in excluded_idx and i not in fixed_idx
+    ]
+
+    n_to_select_with_mrmr = k - len(fixed_idx)
+
+    if n_to_select_with_mrmr <= 0:
+        return fixed_idx
+
+    if n_to_select_with_mrmr >= len(eligible_idx):
+        return fixed_idx + eligible_idx
+
+    X_eligible = X[:, eligible_idx]
+
+    selected_rel_idx = mrmr_feature_selection_deterministic(
+        X_eligible,
+        y,
+        k=n_to_select_with_mrmr,
+        random_state=random_state,
+    )
+
+    selected_abs_idx = [eligible_idx[i] for i in selected_rel_idx]
+
+    return fixed_idx + selected_abs_idx

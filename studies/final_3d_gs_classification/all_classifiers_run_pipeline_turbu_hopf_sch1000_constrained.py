@@ -13,17 +13,17 @@ from src.pipelines.train_eval_pipelines import (
 n_jobs = multiprocessing.cpu_count() - 1  # Leave one core free
 
 data_files = {
-    "all_features_TL_combat": "SMOKE_ML_Trophic_ADNI3_4STAGINGBYABETA_N134_DK80_sc_gr.xlsx",
+    "all_features_TL_combat": "Turbu_ComBat_ADNI3_allfeatures_N145_with_infocap_suscep.xlsx",
 }
 
 classifier = "LogReg"
-classifications = ["HCneg_vs_ADpos", "HCneg_vs_MCIpos", "MCIpos_vs_ADpos","HCneg_vs_HCpos"]
+classifications = ["HCneg_vs_ADpos"]
 group_labels = {"HCneg": "HC_ABneg", "HCpos": "HC_ABpos","MCIpos": "MCI_ABpos", "ADpos": "AD_ABpos"}
 
 if __name__ == "__main__":
     # Main execution
     path_repo = Path(Path(__file__).parent / ".." / "..").resolve()
-    excel_folder = path_repo / "Data" / "trophic"
+    excel_folder = path_repo / "Data" / "turbu_hopf"
     param_folder = path_repo / "Parameters"
 
     # Optional CLI arg: index into the classifications list (for SLURM job arrays)
@@ -38,7 +38,7 @@ if __name__ == "__main__":
             print(f"Training {classifier} with parameters_{classifier}.json")
 
             results_folder = (
-                    path_repo / "Results" / "final_3d_gs_classification_trophic_DK80_sc_gr_det_run2" /
+                    path_repo / "Results" / "final_3d_gs_classification_turbu_hopf_sch1000_constrained" /
                     classifier / classification / data_type
             )
             results_folder.mkdir(exist_ok=True, parents=True)
@@ -46,7 +46,7 @@ if __name__ == "__main__":
             data_file = excel_folder / data_files[data_type]
 
             # Load the parameters file
-            param_file = path_repo / "Parameters" / f"parameters_{classifier}.json"
+            param_file = path_repo / "Parameters" / f"parameters_{classifier}_constrained.json"
             with open(param_file, "r") as file:
                 parameters = json.load(file)
             parameters["N_JOBS"] = n_jobs
@@ -77,5 +77,5 @@ if __name__ == "__main__":
             # performances.
             train_eval_gridsearch_loocv_with_outer_n_loop(
                 x, y, feature_columns, parameters, results_folder,
-                n=1
+                n=20
             )

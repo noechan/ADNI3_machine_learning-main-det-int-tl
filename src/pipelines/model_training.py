@@ -7,7 +7,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_curve, auc, accuracy_score, balanced_accuracy_score
 
 from ..feature_extraction.mrmr_feature_selection import (
-    mrmr_feature_selection_deterministic as mrmr_feature_selection
+    mrmr_feature_selection_deterministic,
+    constrained_mrmr_feature_selection,
 )
 
 scores = {
@@ -21,6 +22,28 @@ classifiers = {
     "LogisticRegression": LogisticRegression,
     "KNNClassifier": KNeighborsClassifier,
 }
+
+def select_features(x_train, y_train, feature_columns, k, config_params):
+    always_include = config_params.get("ALWAYS_INCLUDE_FEATURES", [])
+    excluded_features = config_params.get("EXCLUDED_FEATURES", [])
+
+    if always_include or excluded_features:
+        return constrained_mrmr_feature_selection(
+            x_train,
+            y_train,
+            feature_columns=feature_columns,
+            k=k,
+            always_include=always_include,
+            exclude=excluded_features,
+            random_state=config_params.get("RANDOM_STATE", 0),
+        )
+
+    return mrmr_feature_selection_deterministic(
+        x_train,
+        y_train,
+        k=k,
+        random_state=config_params.get("RANDOM_STATE", 0),
+    )
 
 
 def pipeline_gridsearch_2d_with_loocv(x_train, y_train, feature_columns, config_params):
@@ -133,8 +156,12 @@ def pipeline_gridsearch_2d_with_loocv(x_train, y_train, feature_columns, config_
 
                     # Feature selection inside LOOCV to avoid data leakage
                     if config_params["USE_MRMR_FEATURE_SELECTION"]:
-                        selected_indices = mrmr_feature_selection(
-                            x_train_loo, y_train_loo, k=current_nf
+                        selected_indices = select_features(
+                        x_train_loo,
+                        y_train_loo,
+                        feature_columns,
+                        current_nf,
+                        config_params,
                         )
                         current_selected_features = [
                             feature_columns[i] for i in selected_indices
@@ -276,8 +303,12 @@ def pipeline_gridsearch_3d_with_loocv(x_train, y_train, feature_columns, config_
 
                         if config_params["USE_MRMR_FEATURE_SELECTION"]:
                             # Apply MRMR feature selection with the current "NF" value
-                            selected_indices = mrmr_feature_selection(
-                                x_train_loo, y_train_loo, k=nf_value
+                            selected_indices = select_features(
+                            x_train_loo,
+                            y_train_loo,
+                            feature_columns,
+                            nf_value,
+                            config_params,
                             )
                             current_selected_features = [
                                 feature_columns[i] for i in selected_indices

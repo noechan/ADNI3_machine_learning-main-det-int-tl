@@ -12,11 +12,16 @@ from .model_training import (
     classifiers
 )
 from ..pipelines.shap_feature_importance import pipeline_feature_importance
-from ..feature_extraction.mrmr_feature_selection import mrmr_feature_selection_deterministic
+from ..feature_extraction.mrmr_feature_selection import (
+    mrmr_feature_selection_deterministic,
+    constrained_mrmr_feature_selection,
+)
 from ..utils.summary_pipelines import (
     save_results_summary,
     save_statistics_gridsearch_loocv_pipeline_with_outer_kfold_loop,
 )
+
+from src.pipelines.model_training import select_features
 
 def train_eval_gridsearch_3d_with_loocv(
     x_train, y_train, x_test, y_test, feature_columns, config_params, outputs_folder
@@ -41,9 +46,13 @@ def train_eval_gridsearch_3d_with_loocv(
     # Before model evaluation, perform feature selection (if applies)
     if config_params["USE_MRMR_FEATURE_SELECTION"]:
         # Apply mRMR with the NF:
-        selected_indices = mrmr_feature_selection_deterministic(
-            x_train, y_train, k=best_hyperparams["NF"]
-        )
+        selected_indices = select_features(            
+            x_train,
+            y_train,
+            feature_columns,
+            best_hyperparams["NF"],
+            config_params,
+            )
         best_selected_features = [feature_columns[i] for i in selected_indices]
         # Use selected indices for both training and testing
         x_train = x_train[:, selected_indices]
