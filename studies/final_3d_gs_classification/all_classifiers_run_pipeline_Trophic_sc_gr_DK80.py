@@ -4,7 +4,7 @@ import multiprocessing
 
 from pathlib import Path
 
-from src.data_loading.load_from_excel import get_x_arr_for_scikit_from_excel
+from src.data_loading.load_from_table import get_x_arr_for_scikit_from_table
 from src.pipelines.train_eval_pipelines import (
     train_eval_gridsearch_loocv_with_outer_n_loop,
 )
@@ -65,12 +65,13 @@ if __name__ == "__main__":
             print(f"Training N fold with {classifier} Grid Search and LOOCV {data_file} Data")
 
             # We load the data from the file
-            x, y, feature_columns = get_x_arr_for_scikit_from_excel(
-                data_file,
-                parameters["GROUPS"],
-                parameters["ID_KEY"],
-                parameters["GROUP_KEY"],
-            )
+            x, y, feature_columns = get_x_arr_for_scikit_from_table(data_file,
+                                                                    parameters[
+                                                                        "GROUPS"],
+                                                                    parameters[
+                                                                        "ID_KEY"],
+                                                                    parameters[
+                                                                        "GROUP_KEY"])
 
             # And we run the train_eval_knn gridsearch which performs gridsearch,
             # trains on best parameters, and evaluates the model and reports the

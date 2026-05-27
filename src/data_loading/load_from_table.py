@@ -2,15 +2,19 @@ import numpy as np
 import pandas as pd
 
 
-def get_x_arr_for_scikit_from_excel(
+def get_x_arr_for_scikit_from_table(
     file_path, dict_groups_labels, id_key="ID", group_key="Group"
 ):
     if len(dict_groups_labels) != 2:
         raise ValueError(
             f"Skipping {file_path} as dict_group_labels passed does not contain only two groups"
         )
-
-    df_data = pd.read_excel(file_path)
+    if file_path.endswith(".xlsx"):
+        df_data = pd.read_excel(file_path)
+    elif file_path.endswith(".csv"):
+        df_data = pd.read_csv(file_path)
+    else:
+        raise ValueError(f"File {file_path} is not a .csv or .xlsx")
 
     if group_key not in df_data.columns:
         raise ValueError(
