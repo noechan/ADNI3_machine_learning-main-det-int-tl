@@ -9,9 +9,9 @@ def get_x_arr_for_scikit_from_table(
         raise ValueError(
             f"Skipping {file_path} as dict_group_labels passed does not contain only two groups"
         )
-    if file_path.endswith(".xlsx"):
+    if str(file_path).endswith(".xlsx"):
         df_data = pd.read_excel(file_path)
-    elif file_path.endswith(".csv"):
+    elif str(file_path).endswith(".csv"):
         df_data = pd.read_csv(file_path)
     else:
         raise ValueError(f"File {file_path} is not a .csv or .xlsx")
