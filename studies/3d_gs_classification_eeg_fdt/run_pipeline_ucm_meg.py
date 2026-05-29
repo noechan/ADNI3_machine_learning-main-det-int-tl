@@ -25,7 +25,7 @@ classifier = "LogReg"
 classifications = [
     "HC_vs_MCI_nC",
     "HC_vs_MCI_C",
-    "MCI_nC_vs_MCI_C"
+    "MCI_nC_vs_MCI_C",
     "HC_vs_AD"
 ]
 group_labels = {"HC": "HC", "MCI_nC": "MCI (nC)", "MCI_C": "MCI (C)", "AD": "AD"}
@@ -88,5 +88,5 @@ if __name__ == "__main__":
             # performances.
             train_eval_gridsearch_loocv_with_outer_n_loop(
                 x, y, feature_columns, parameters, results_folder,
-                n=4
+                n=20
             )
