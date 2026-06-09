@@ -1,3 +1,4 @@
+import copy
 import json
 import joblib
 
@@ -127,8 +128,42 @@ def train_eval_gridsearch_3d_with_loocv(
 
     print("Pipeline Finished\n")
 
+def _run_single_monte_carlo_iteration(
+    i, x, y, feature_columns, config_params, outputs_folder, random_state_i
+):
+    """Run a single Monte Carlo iteration (one train/test split + full pipeline).
+
+    This is a standalone helper designed to be called in parallel via joblib.
+    Each call receives its own deep-copied config_params so there is no shared
+    mutable state between workers.
+    """
+    print(f"\n -------- Running GridSearch Pipeline for Iteration {i} -------- \n")
+
+    # Deep-copy so that mutations inside the pipeline never leak across workers
+    params = copy.deepcopy(config_params)
+    params["RANDOM_STATE"] = int(random_state_i)
+
+    # When running iterations in parallel, each worker should use only 1 job
+    # internally to avoid oversubscription of CPU cores.
+    if params.get("_PARALLEL_MC", False):
+        params["N_JOBS"] = 1
+
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=params["TEST_SIZE"], random_state=params["RANDOM_STATE"]
+    )
+
+    outputs_folder_fold = Path(outputs_folder) / f"fold_{i}"
+    outputs_folder_fold.mkdir(exist_ok=True, parents=True)
+
+    train_eval_gridsearch_3d_with_loocv(
+        x_train, y_train, x_test, y_test,
+        feature_columns, params, outputs_folder_fold,
+    )
+
+
 def train_eval_gridsearch_loocv_with_outer_n_loop(
-    x, y, feature_columns, config_params, outputs_folder, n=20
+    x, y, feature_columns, config_params, outputs_folder, n=20,
+    n_monte_carlo_jobs=1,
 ):
     """
     This function runs an N iterations of the 3D Gridsearch with LOOCV approach,
@@ -161,44 +196,40 @@ def train_eval_gridsearch_loocv_with_outer_n_loop(
         config_params: dictionary with parameters, consult parameters_readme.
         outputs_folder: Path to the folder where results will be output.
         n: (int) number of iterations in the loop calling the pipelines.
+        n_monte_carlo_jobs: (int) number of Monte Carlo iterations to run in
+            parallel.  Defaults to 1 (sequential, original behaviour).
+            Set to -1 to use all available cores, or to any positive integer.
+            When > 1, each worker's internal N_JOBS is forced to 1 to prevent
+            CPU oversubscription on SLURM clusters.
 
     Returns:
 
     """
-    # In this case, we will not perform a KFold, but a single train/test split for
-    # each of the iterations with a different random state.
+    # Pre-generate all N random states deterministically so that results are
+    # reproducible regardless of the parallelism level.
+    rng = np.random.RandomState(config_params["RANDOM_STATE"])
+    random_states = rng.randint(0, 2**31 - 1, size=n)
 
-    # We will fix the random state as a random seed, though, to still maintain
-    # reproducibility.
-    np.random.seed(config_params["RANDOM_STATE"])
+    parallel = n_monte_carlo_jobs != 1
 
-    ################## HERE'S THE TRAINING FUNCTION #############################
+    if parallel:
+        # Flag so the helper knows to set N_JOBS=1 inside each worker
+        config_params["_PARALLEL_MC"] = True
 
-    train_eval_function = train_eval_gridsearch_3d_with_loocv
-
-    ##############################################################################
-    for i in range(n):
-        print(f"\n -------- Running GridSearch  Pipeline for Iteration {i} -------- \n")
-        # For each attempt we fix a different random state
-        config_params["RANDOM_STATE"] = np.random.randint(100)
-        x_train, x_test, y_train, y_test = train_test_split(
-            x, y, test_size=config_params["TEST_SIZE"], random_state=config_params["RANDOM_STATE"]
+    if parallel:
+        joblib.Parallel(n_jobs=n_monte_carlo_jobs)(
+            joblib.delayed(_run_single_monte_carlo_iteration)(
+                i, x, y, feature_columns, config_params, outputs_folder,
+                random_states[i],
+            )
+            for i in range(n)
         )
-        # For each fold, we generate a new outputs_folder path to store fold-results
-        outputs_folder_fold = Path(outputs_folder) / f"fold_{i}"
-        outputs_folder_fold.mkdir(exist_ok=True)
-
-        # We call the function to perform the gridsearch and optimization for the
-        # given fold
-        train_eval_function(
-            x_train,
-            y_train,
-            x_test,
-            y_test,
-            feature_columns,
-            config_params,
-            outputs_folder_fold,
-        )
+    else:
+        for i in range(n):
+            _run_single_monte_carlo_iteration(
+                i, x, y, feature_columns, config_params, outputs_folder,
+                random_states[i],
+            )
 
     print("Finished Running GridSearch pipeline for all folds")
 
